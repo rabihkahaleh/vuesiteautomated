@@ -1,0 +1,89 @@
+name: Netlify CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: netlify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm test --if-present -- --ci
+        env: { CI: true }
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.ci.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+        env: { NODE_ENV: production }
+
+      - name: Install Netlify CLI
+        run: npm i -g netlify-cli jq
+
+      - name: Deploy (Preview for PRs)
+        if: ${{ github.event_name == 'pull_request' }}
+        id: preview
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          URL=$(netlify deploy \
+            --site "$NETLIFY_SITE_ID" \
+            --auth "$NETLIFY_AUTH_TOKEN" \
+            --dir "$(node -p "require('./netlify.json').publish || 'dist'")" \
+            --message "Preview from PR #${{ github.event.pull_request.number }} @ ${{ github.sha }}" \
+            --json | jq -r '.deploy_url')
+          echo "deploy_url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Comment Preview URL on PR
+        if: ${{ github.event_name == 'pull_request' && steps.preview.outputs.deploy_url }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.preview.outputs.deploy_url }}';
+            const body = `✅ Netlify Preview ready:\n\n**${url}**`;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body
+            });
+
+      - name: Deploy (Production on main)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          netlify deploy \
+            --site "$NETLIFY_SITE_ID" \
+            --auth "$NETLIFY_AUTH_TOKEN" \
+            --dir "$(node -p "require('./netlify.json').publish || 'dist'")" \
+            --message "Production deploy @ ${{ github.sha }}" \
+            --prod
