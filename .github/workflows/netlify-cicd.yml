@@ -61,13 +61,14 @@ jobs:
       - name: Install Netlify CLI
         run: npm i -g netlify-cli jq
 
-      # 👇 This links the CLI to your site using the secret SITE ID
-      - name: Link Netlify site
+      # Create the non-interactive link file so the CLI knows your site
+      - name: Write Netlify state (no interactive login)
         env:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         run: |
-          netlify link --id "$NETLIFY_SITE_ID"
-          netlify status
+          mkdir -p .netlify
+          echo "{\"siteId\":\"$NETLIFY_SITE_ID\"}" > .netlify/state.json
+          cat .netlify/state.json
 
       # ---- Preview deploy on PRs ----
       - name: Deploy (Preview for PRs)
