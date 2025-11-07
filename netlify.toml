@@ -1,0 +1,12 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Vue Router history mode (deep links work)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
