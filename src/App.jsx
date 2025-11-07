@@ -19,7 +19,7 @@ function App() {
       <h1>Vite + React</h1>
       <div className="card">
         <button onClick={() => setCount((count) => count + 1)}>
-       my count is   count is {count}
+       my count is mwhatever u want toxunt   count is {count}
         </button>
         <p>
           Edit <code>src/App.jsx</code> and save to test HMR
