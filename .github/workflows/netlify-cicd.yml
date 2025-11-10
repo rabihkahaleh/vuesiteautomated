@@ -15,6 +15,9 @@ concurrency:
   group: netlify-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  BUILD_DIR: dist
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -61,14 +64,8 @@ jobs:
       - name: Install Netlify CLI
         run: npm i -g netlify-cli jq
 
-      # Create the non-interactive link file so the CLI knows your site
-      - name: Write Netlify state (no interactive login)
-        env:
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        run: |
-          mkdir -p .netlify
-          echo "{\"siteId\":\"$NETLIFY_SITE_ID\"}" > .netlify/state.json
-          cat .netlify/state.json
+      - name: Verify build output
+        run: ls -la "$BUILD_DIR"
 
       # ---- Preview deploy on PRs ----
       - name: Deploy (Preview for PRs)
@@ -81,7 +78,7 @@ jobs:
           URL=$(netlify deploy \
             --auth "$NETLIFY_AUTH_TOKEN" \
             --site "$NETLIFY_SITE_ID" \
-            --dir "$(node -p "require('./netlify.json').publish || 'dist'")" \
+            --dir "$BUILD_DIR" \
             --message "Preview from PR #${{ github.event.pull_request.number }} @ ${{ github.sha }}" \
             --json | jq -r '.deploy_url')
           echo "deploy_url=$URL" >> $GITHUB_OUTPUT
@@ -110,6 +107,6 @@ jobs:
           netlify deploy \
             --auth "$NETLIFY_AUTH_TOKEN" \
             --site "$NETLIFY_SITE_ID" \
-            --dir "$(node -p "require('./netlify.json').publish || 'dist'")" \
+            --dir "$BUILD_DIR" \
             --message "Production deploy @ ${{ github.sha }}" \
             --prod
