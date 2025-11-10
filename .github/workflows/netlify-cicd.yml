@@ -40,22 +40,6 @@ jobs:
         env:
           CI: true
 
-      - name: Sanity checks (secrets & build dir)
-        run: |
-          [ -n "${{ secrets.NETLIFY_AUTH_TOKEN }}" ] || (echo "❌ NETLIFY_AUTH_TOKEN is empty" && exit 1)
-          [ -n "${{ secrets.NETLIFY_SITE_ID }}" ] || (echo "❌ NETLIFY_SITE_ID is empty" && exit 1)
-          [ -d "$BUILD_DIR" ] || (echo "❌ Build dir '$BUILD_DIR' not found" && ls -la && exit 1)
-
-      - name: Netlify status (does token see this site?)
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        run: |
-          netlify status --auth "$NETLIFY_AUTH_TOKEN" --site "$NETLIFY_SITE_ID" || {
-            echo "❌ The token cannot access this site. Check token/team/site-id."
-            exit 1
-          }
-    
   deploy:
     needs: ci
     runs-on: ubuntu-latest
@@ -72,7 +56,7 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Build
+      - name: Build (Vite)
         run: npm run build
         env:
           NODE_ENV: production
@@ -80,8 +64,17 @@ jobs:
       - name: Install Netlify CLI
         run: npm i -g netlify-cli jq
 
-      - name: Verify build output
-        run: ls -la "$BUILD_DIR"
+      - name: Sanity checks (secrets & build dir)
+        run: |
+          [ -n "${{ secrets.NETLIFY_AUTH_TOKEN }}" ] || (echo "❌ NETLIFY_AUTH_TOKEN is empty" && exit 1)
+          [ -n "${{ secrets.NETLIFY_SITE_ID }}" ] || (echo "❌ NETLIFY_SITE_ID is empty" && exit 1)
+          [ -d "$BUILD_DIR" ] || (echo "❌ Build dir '$BUILD_DIR' not found" && ls -la && exit 1)
+
+      - name: Netlify status (token can access site)
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: netlify status --auth "$NETLIFY_AUTH_TOKEN" --site "$NETLIFY_SITE_ID"
 
       # ---- Preview deploy on PRs ----
       - name: Deploy (Preview for PRs)
